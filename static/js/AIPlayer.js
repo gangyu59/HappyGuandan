@@ -3,69 +3,95 @@ function AIPlayer(cardRules, cardPower) {
   this.cardPower = cardPower;
 
   this.decidePlay = function (player, lastPlay, lastPlayerIndex) {
-    const all = player.cards.slice();
-    const grouper = new CardGrouper();
-    const grouped = grouper.groupByMinHands(all); // 按最少手数组牌
+  const all = player.cards.slice();
+  const grouper = new CardGrouper();
 
-    const sorted = grouped.slice().reverse(); // 从弱到强排列（留强牌）
+  const grouped = (player.index === 0 || player.index === 2)
+    ? grouper.groupByMinHands(all)
+    : grouper.groupByCardPower(all);
 
-    for (let i = 0; i < sorted.length; i++) {
-      const group = sorted[i];
-      const type = cardRules.getCardType(group);
-      if (!type) continue;
+  const sorted = grouped.slice().reverse(); // 从弱到强
 
-      const valid = window.gameRules.validPlay({
-        playerIndex: player.index,
-        selected: group,
-        type,
-        lastPlay,
-        lastPlayerIndex,
-        cardRules,
-        cardPower
-      });
+  // ✅ 出牌顺序扰动参数
+  const baseProb = 0.6; // 最弱牌出牌概率为 60%
+  const decay = 0.05;   // 每强一组，概率递减
 
-      if (!valid) continue;
+  // ✅ 炸弹扰动参数：0 = 一定出，1 = 一定保留
+  const bombSkipProbability = 0.15;
 
-      const shouldPass = window.PartnerStrategy.shouldPass({
-        playerIndex: player.index,
-        candidateCards: group,
-        candidateType: type,
-        lastPlayerIndex,
-        lastCards: lastPlay?.cards || [],
-        lastType: lastPlay?.type || '',
-        cardRules,
-        cardPower
-      });
+  for (let i = 0; i < sorted.length; i++) {
+    const group = sorted[i];
+    const type = cardRules.getCardType(group);
+    if (!type) continue;
 
-      if (!shouldPass) return { type, cards: group };
+    const isBombType = ['bomb', 'big_bomb', 'straight_flush'].includes(type);
 
-      // ✅ 特殊情况：即将没有该类型中更小牌可出了，提升牌型
-      if (shouldUpgradeFromType(player.cards, type, cardRules)) continue;
+    // ✅ 有炸弹且对手出牌时，有概率跳过炸弹（保存）
+    if (isBombType && lastPlay && Math.random() < bombSkipProbability) {
+      continue;
+    }
 
+    const valid = window.gameRules.validPlay({
+      playerIndex: player.index,
+      selected: group,
+      type,
+      lastPlay,
+      lastPlayerIndex,
+      cardRules,
+      cardPower
+    });
+
+    if (!valid) continue;
+
+    const shouldPass = window.PartnerStrategy.shouldPass({
+      playerIndex: player.index,
+      candidateCards: group,
+      candidateType: type,
+      lastPlayerIndex,
+      lastCards: lastPlay?.cards || [],
+      lastType: lastPlay?.type || '',
+      cardRules,
+      cardPower
+    });
+
+    if (shouldPass) {
+      // ✅ 有概率违反队友建议（不 pass）
+      const passChance = Math.random();
+      if (passChance > 0.8) return { type, cards: group };
+      else continue;
+    }
+
+    // ✅ 出牌扰动：按牌力逐渐降低出牌概率
+    const prob = baseProb - i * decay;
+    if (Math.random() < Math.max(prob, 0.1)) {
       return { type, cards: group };
     }
+  }
 
-    // ✅ 如果要尝试拆牌
-    if (lastPlay && lastPlayerIndex !== player.index) {
-      const trySplit = trySplitFromGroups(player.cards, grouped, lastPlay, cardRules, cardPower);
-      if (trySplit) return trySplit;
-    }
+  // ✅ 尝试拆牌
+  if (lastPlay && lastPlayerIndex !== player.index) {
+    const trySplit = trySplitFromGroups(player.cards, grouped, lastPlay, cardRules, cardPower);
+    if (trySplit) return trySplit;
+  }
 
-    // ✅ 自己是上家：必须出任意牌
-    if (!lastPlay || lastPlayerIndex === player.index) {
-      const fallback = sorted[0];
-      return {
-        type: cardRules.getCardType(fallback),
-        cards: fallback
-      };
-    }
+  // ✅ 自己是上家：出任意一组
+  if (!lastPlay || lastPlayerIndex === player.index) {
+    const fallback = sorted[Math.floor(Math.random() * sorted.length)];
+    return {
+      type: cardRules.getCardType(fallback),
+      cards: fallback
+    };
+  }
 
-    return { type: 'pass' };
-  };
+  return { type: 'pass' };
+};
 }
 
 // ✅ 如果该类型剩下的全是主牌/王/大牌，可考虑升级为更强牌型
 function shouldUpgradeFromType(cards, type, cardRules) {
+  // ✅ 可调节的扰动概率（0 = 总是升级；1 = 总是不升级）
+  const upgradeSkipProbability = 0.3;
+
   const trump = cardRules.trumpValue;
   const ranks = cardRules.getCardRanks();
 
@@ -78,14 +104,22 @@ function shouldUpgradeFromType(cards, type, cardRules) {
 
   const isStrong = sameTypeCards.every(c => {
     const val = ranks[c.value];
-    const isTrump = c.value === trump || isWildcard(c, trump); // ✅ 用外部函数
+    const isTrump = c.value === trump || isWildcard(c, trump);
     return isTrump || val >= ranks['K'];
   });
+
+  // ✅ 满足强牌条件后，加入扰动概率
+  if (isStrong && Math.random() > upgradeSkipProbability) {
+    return false; // 有概率忽略升级建议
+  }
 
   return isStrong;
 }
 
 function trySplitFromGroups(cards, groups, lastPlay, cardRules, cardPower) {
+  // ✅ 可调节随机程度（0 = 固定顺序，1 = 完全打乱）
+  const splitRandomness = 0.3; 
+	
   const lastType = lastPlay.type;
   const lastCards = lastPlay.cards;
   if (!lastType || lastType === 'pass') return null;
@@ -106,14 +140,17 @@ function trySplitFromGroups(cards, groups, lastPlay, cardRules, cardPower) {
 
   // ✅ 百搭优先拆牌顺序
   const splitOrder = [
-    'triplet_with_pair', // 三带二
-    'wooden_board',      // 木板
-    'steel_plate',       // 钢板
-    'triplet',           // 三张
-    'pair'               // 对子
+    'triplet_with_pair',
+    'wooden_board',
+    'steel_plate',
+    'triplet',
+    'pair'
   ];
 
-  for (const sourceType of splitOrder) {
+  // ✅ 应用扰动打乱顺序（受控随机性）
+  const perturbedOrder = splitOrder.slice().sort(() => Math.random() - splitRandomness);
+
+  for (const sourceType of perturbedOrder) {
     const sourceGroup = groups.find(g => cardRules.getCardType(g) === sourceType);
     if (!sourceGroup) continue;
 
@@ -130,6 +167,7 @@ function trySplitFromGroups(cards, groups, lastPlay, cardRules, cardPower) {
       }
     }
   }
+
   return null;
 }
 

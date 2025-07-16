@@ -241,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setTimeout(() => {
       const grouper = new CardGrouper();
-      const grouped = grouper.groupByMinHands(window.game.players[0].cards);
+      const grouped = grouper.groupByCardPower(window.game.players[0].cards);
 
       const groupedWithId = grouped.map((group, i) =>
         group.map(card => ({

@@ -2,8 +2,79 @@ function CardGrouper() {
     const rules = window.cardRules;
     const power = window.cardPower;
 
-    // 最少手数组牌：每种牌型单独提取
-    this.groupByMinHands = function(cards) {
+    // 最少手数组牌
+		this.groupByMinHands = function(cards) {
+  const rules = window.cardRules;
+  const power = window.cardPower;
+  const trump = rules.trumpValue;
+
+  const isW = (c) => isWildcard(c, trump);
+  const parts = splitWildcards(cards); // ✅ 你自定义的，无需传 trump
+  const normalCards = parts.others;
+  const wildcards = parts.wildcards;
+
+  const extractors = [
+    extractSuperBomb,
+    extractStraightFlush,
+    extractBomb,
+    extractBigBomb,
+    extractSteelPlate,
+    extractWoodenBoard,
+    extractTripletWithPair,
+    extractStraight,
+    extractTriplet,
+    extractPair,
+    extractSingle
+  ];
+
+  const hashGroup = (group) =>
+    group.map(c => `${c.suit}${c.value}`).sort().join(',');
+
+  let bestResult = null;
+
+  function dfs(remaining, wildPool, path, seen) {
+    if (remaining.length === 0 && wildPool.length === 0) {
+      if (!bestResult || path.length < bestResult.length) {
+        bestResult = [...path];
+      }
+      return;
+    }
+
+    if (bestResult && path.length >= bestResult.length) return;
+
+    const combined = remaining.concat(wildPool);
+
+    for (const extractor of extractors) {
+      const { group, rest } = extractor(combined);
+      if (!group || group.length === 0) continue;
+
+      const hash = hashGroup(group);
+      if (seen.has(hash)) continue;
+      seen.add(hash);
+
+      const usedNormal = group.filter(c => !isW(c));
+      const usedWild = group.filter(isW);
+
+      // ❗如果是4张炸弹，不允许拆（保留）
+      const type = rules.getCardType(group);
+      if (type === 'bomb' && group.length === 4) continue;
+
+      // ❗其余牌型允许尝试拆牌
+      const nextRemaining = remaining.filter(c => !usedNormal.includes(c));
+      const nextWild = [...wildPool];
+      nextWild.splice(0, usedWild.length);
+
+      dfs(nextRemaining, nextWild, [...path, group], new Set(seen));
+    }
+  }
+
+  dfs(normalCards, wildcards, [], new Set());
+
+  return power.sortGroups(bestResult || [], rules);
+};
+
+		// 最大牌力排序组牌
+    this.groupByCardPower = function(cards) {
         let hand = cards.slice(); // 拷贝
         const result = [];
 

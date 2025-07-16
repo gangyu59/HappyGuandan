@@ -254,50 +254,73 @@ function Game(playerCount, firstPlayerIndex = 0) {
 		};
 
     this.checkGameOver = function () {
-		  if (this.gameOver) return; // ⛔️ 避免重复
-		
-		  const totalPlayers = this.players.length;
-		
-		  if (this.finishedPlayers.length >= totalPlayers - 1) {
-		    this.gameOver = true;
-		    window.gameEnded = true;  // ✅ 允许再次点击下一盘按钮
-		
-		    // ✅ 恢复 start-btn 按钮可点击
-		    const startBtn = document.getElementById('start-btn');
-		    if (startBtn) {
-		      startBtn.disabled = false;
-		      startBtn.textContent = '下一盘';
-//		      console.log('✅ 游戏结束，按钮已激活');
-		    }
-		
-		    const remaining = this.players
-		      .map((p, i) => i)
-		      .filter(i => !this.finishedPlayers.includes(i));
-		
-		    const finalOrder = [...this.finishedPlayers, ...remaining];
-		
-		    if (window.overlayRenderer) {
-		      const labels = ['头游', '二游', '三游', '末游'];
-		      for (let i = 0; i < finalOrder.length; i++) {
-		        const playerIndex = finalOrder[i];
-		        const label = labels[i] || `第${i + 1}游`;
-		        overlayRenderer.renderRankLabel(playerIndex, label);
-		      }
-		    }
-				
-				// 记录下一盘的出牌者
-				window.firstPlayerIndex = finalOrder[0];  // 第一个是头游
-//				console.log('📌 下一盘由玩家', window.firstPlayerIndex + 1, '先出牌');
-		
-		  window.scoreSystem.calculateLevelUp(finalOrder);
-				
-				const winner = window.scoreSystem.checkGlobalWin();
-				if (winner && window.showVictoryOverlay) {
-				  const winnerText = winner === 'self' ? '南北队' : '东西队';
-				  window.showVictoryOverlay(winnerText);
-				}
-		  };
-		};
+  if (this.gameOver) return; // ⛔️ 避免重复
+
+  const totalPlayers = this.players.length;
+
+  if (this.finishedPlayers.length >= totalPlayers - 1) {
+    this.gameOver = true;
+    window.gameEnded = true;  // ✅ 允许再次点击下一盘按钮
+
+    // ✅ 恢复 start-btn 按钮可点击
+    const startBtn = document.getElementById('start-btn');
+    if (startBtn) {
+      startBtn.disabled = false;
+      startBtn.textContent = '下一盘';
+    }
+
+    const remaining = this.players
+      .map((p, i) => i)
+      .filter(i => !this.finishedPlayers.includes(i));
+
+    const finalOrder = [...this.finishedPlayers, ...remaining];
+
+    if (window.overlayRenderer) {
+      const labels = ['头游', '二游', '三游', '末游'];
+      for (let i = 0; i < finalOrder.length; i++) {
+        const playerIndex = finalOrder[i];
+        const label = labels[i] || `第${i + 1}游`;
+        overlayRenderer.renderRankLabel(playerIndex, label);
+      }
+    }
+
+    // 记录下一盘的出牌者
+    window.firstPlayerIndex = finalOrder[0];  // 第一个是头游
+
+    // 计算升级
+    window.scoreSystem.calculateLevelUp(finalOrder);
+
+    // 检查整局是否胜出
+    const winner = window.scoreSystem.checkGlobalWin();
+    const startBtnFinal = document.getElementById('start-btn');
+
+    if (winner && window.showVictoryOverlay) {
+      const winnerText = winner === 'self' ? '南北队' : '东西队';
+      window.showVictoryOverlay(winnerText);
+
+      // ✅ 整局结束，等待玩家点击“再来一局”
+      if (startBtnFinal) {
+        startBtnFinal.disabled = false;
+        startBtnFinal.textContent = '再来一局';
+      }
+
+    } else {
+      // ✅ 非整局结束，准备下一盘
+      if (startBtnFinal) {
+        startBtnFinal.disabled = false;
+        startBtnFinal.textContent = '下一盘';
+      }
+
+      // ✅ 若启用“自动出牌”，模拟点击“下一盘”
+      const autoModeEnabled = document.getElementById('auto-play')?.checked;
+      if (autoModeEnabled && startBtnFinal) {
+        setTimeout(() => {
+          startBtnFinal.click();
+        }, 1200); // 稍等一下，保留末游提示时间
+      }
+    }
+  }
+};
 		
 		this._updateBoardPlay = function (playerIndex, cards, isPass = false) {
 		  // 主画布展示（可选保留）
