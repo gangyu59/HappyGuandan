@@ -6,6 +6,7 @@
 		        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 		  <title>HappyGuandan</title>
 		  <link rel="stylesheet" href="css/style.css">
+			<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 		</head>
 <body>
     <div id="game-container">
@@ -13,7 +14,7 @@
 				<<canvas id="overlay-canvas" width="1000" height="700" style="position:absolute; top:0; left:0; pointer-events:none; z-index:50;"></canvas>
 				<div id="hourglass" style="display: none; font-size: 50px; text-align: center;">⏳</div>
 				<div id="button-row">
-				  <button id="start-btn" class="action-btn">发牌</button>
+				  <button id="start-btn" class="action-btn">开始</button>
 				  <button id="organize-btn" class="action-btn">理牌</button>
 				  <button id="min-hand-btn" class="action-btn">AI组牌</button>
 				  <button id="reset-btn" class="action-btn">还原</button>
@@ -80,6 +81,7 @@
     <script src="static/js/OverlayRenderer.js"></script>
 		<script src="static/js/PartnerStrategy.js"></script>
     <script src="static/js/CardSelector.js"></script>
+		<script src="static/js/MLModel.js"></script>
 		<script src="static/js/HandOptimizer.js"></script>
 		<script src="static/js/AIPlayer.js"></script>
 		<script src="static/js/DataLogger.js"></script>
